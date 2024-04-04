@@ -1,3 +1,5 @@
+const jwt = require('jsonwebtoken');
+
 const enabledScopes = ['read', 'write'];
 const getUserDoc = () => ({ id: 'system' });
 
@@ -20,7 +22,7 @@ function createModel(db) {
       return scope;
     }
 
-    if(Array.isArray(scope) && scope.every((s) => enabledScopes.includes(s))) {
+    if (Array.isArray(scope) && scope.every((s) => enabledScopes.includes(s))) {
       return scope;
     }
 
@@ -35,6 +37,19 @@ function createModel(db) {
     // so we can safely use it like this.
     const client = db.findClient(_client.id, _client.secret);
     return client && getUserDoc();
+  }
+
+  function generateAccessToken(client, user, scope) {
+    const payload = {
+      clientId: client.id,
+      userId: user.id,
+      scope: scope,
+    };
+
+    return jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: 3600,
+      algorithm: 'HS256',
+    });
   }
 
   async function saveToken(token, client, user) {
@@ -86,7 +101,7 @@ function createModel(db) {
       redirectUri: code.redirectUri,
       scope: code.scope,
       client: db.findClientById(code.clientId),
-      user: {id: code.userId},
+      user: { id: code.userId },
     };
   }
 
@@ -148,6 +163,7 @@ function createModel(db) {
     saveAuthorizationCode,
     revokeAuthorizationCode,
     getAuthorizationCode,
+    generateAccessToken,
   };
 }
 

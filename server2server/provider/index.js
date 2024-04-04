@@ -59,12 +59,10 @@ app.post('/token', async (req, res) => {
       new OAuthServer.Request(req),
       new OAuthServer.Response(res),
     );
-    console.log({ token });
-    const jwtToken = generateJWTToken(token);
     res.json({
-      access_token: jwtToken,
+      access_token: token.accessToken,
       token_type: 'Bearer',
-      expires_in: 3600,
+      expires_at: token.accessTokenExpiresAt,
       refresh_token: token.refreshToken,
     });
   } catch (err) {
@@ -88,20 +86,6 @@ const authenticate = async (req, res, next) => {
       .json({ error: err.name, message: err.message });
   }
 };
-
-function generateJWTToken(tokenData) {
-  const payload = {
-    userId: tokenData.user.id, // Assuming user ID is stored in the tokenData
-    scope: tokenData.scope,
-    // Add additional payload data if needed
-  };
-
-  // Sign the JWT token
-  return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: 3600,
-    algorithm: 'HS256',
-  });
-}
 
 const internal = {
   resource: null,

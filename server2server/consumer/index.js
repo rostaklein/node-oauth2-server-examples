@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import fetch from 'node-fetch';
 import 'dotenv/config';
 
@@ -33,11 +34,12 @@ const run = async () => {
     note: 'not authenticated',
   });
 
+  const generatedState = crypto.randomBytes(16).toString('hex');
   const wrongAuthorizationBodyParams = new URLSearchParams();
   wrongAuthorizationBodyParams.append('response_type', 'code');
   wrongAuthorizationBodyParams.append('client_id', 'wrong-id');
   wrongAuthorizationBodyParams.append('scope', 'read');
-  wrongAuthorizationBodyParams.append('state', 'test');
+  wrongAuthorizationBodyParams.append('state', generatedState);
 
   await request({
     url: '/authorize',
@@ -53,7 +55,7 @@ const run = async () => {
   correctAuthorizationBodyParams.append('response_type', 'code');
   correctAuthorizationBodyParams.append('client_id', client.id);
   correctAuthorizationBodyParams.append('scope', 'read');
-  correctAuthorizationBodyParams.append('state', 'test');
+  correctAuthorizationBodyParams.append('state', generatedState);
 
   const authCodeBody = await request({
     url: '/authorize',
