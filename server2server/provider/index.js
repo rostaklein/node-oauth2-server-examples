@@ -22,7 +22,7 @@ db.saveClient({
   id: process.env.CLIENT_ID,
   secret: process.env.CLIENT_SECRET,
   redirectUris: ['http://localhost:8080/token'],
-  grants: ['authorization_code'],
+  grants: ['authorization_code', 'refresh_token'],
 });
 
 app.use(bodyParser.json());
@@ -64,7 +64,8 @@ app.post('/token', async (req, res) => {
     res.json({
       access_token: jwtToken,
       token_type: 'Bearer',
-      expires_in: jwtToken.accessTokenExpiresAt,
+      expires_in: 3600,
+      refresh_token: token.refreshToken,
     });
   } catch (err) {
     res
@@ -91,6 +92,7 @@ const authenticate = async (req, res, next) => {
 function generateJWTToken(tokenData) {
   const payload = {
     userId: tokenData.user.id, // Assuming user ID is stored in the tokenData
+    scope: tokenData.scope,
     // Add additional payload data if needed
   };
 

@@ -77,7 +77,7 @@ const run = async () => {
   tokenBodyParams.append('scope', 'read');
   tokenBodyParams.append('redirect_uri', 'http://localhost:8080/token');
 
-  const tokenBody = await request({
+  const rawTokenBody = await request({
     url: '/token',
     note: 'valid credentials',
     method: 'post',
@@ -90,8 +90,10 @@ const run = async () => {
     },
   });
 
-  const accessToken = JSON.parse(tokenBody).access_token;
-  const tokenType = JSON.parse(tokenBody).token_type;
+  const tokenBody = JSON.parse(rawTokenBody);
+  const accessToken = tokenBody.access_token;
+  const tokenType = tokenBody.token_type;
+  const refreshToken = tokenBody.refresh_token;
 
   if (accessToken) {
     log('authorization token successfully retrieved!', '\n');
@@ -132,6 +134,25 @@ const run = async () => {
     note: 'authenticated, resource is now',
     headers: {
       authorization: `${tokenType} ${accessToken}`,
+    },
+  });
+
+  const refreshTokenBodyParams = new URLSearchParams();
+  refreshTokenBodyParams.append('grant_type', 'refresh_token');
+  refreshTokenBodyParams.append('refresh_token', refreshToken);
+  refreshTokenBodyParams.append('client_id', client.id);
+  refreshTokenBodyParams.append('client_secret', client.secret);
+
+  await request({
+    url: '/token',
+    note: 'valid credentials',
+    method: 'post',
+    body: refreshTokenBodyParams,
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization:
+        'Basic ' +
+        Buffer.from(`${client.id}:${client.secret}`).toString('base64'),
     },
   });
 };
