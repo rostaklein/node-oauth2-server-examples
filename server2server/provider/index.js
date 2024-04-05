@@ -1,19 +1,28 @@
 const bodyParser = require('body-parser');
 const express = require('express');
-const OAuthServer = require('@node-oauth/express-oauth-server');
+const OAuthServer = require('@node-oauth/oauth2-server');
 const createModel = require('./model');
+const jwt = require('jsonwebtoken');
 const DB = require('./db');
 
 const db = new DB();
 const app = express();
 const oauth = new OAuthServer({
-  model: createModel(db)
+  model: createModel(db),
+  continueMiddleware: true,
+  authenticateHandler: {
+    handle() {
+      return { id: 'system', foo: 'bar' };
+    },
+  },
+  debug: true,
 });
 
 db.saveClient({
   id: process.env.CLIENT_ID,
   secret: process.env.CLIENT_SECRET,
-  grants: ['client_credentials']
+  redirectUris: ['http://localhost:8080/token'],
+  grants: ['authorization_code', 'refresh_token'],
 });
 
 app.use(bodyParser.json());
@@ -29,18 +38,69 @@ app.get('/public', function (req, res) {
 // ------------------------
 // private area begins here
 // ------------------------
-app.use('/token', oauth.token());
+app.use('/authorize', async (req, res) => {
+  try {
+    const authorizationCode = await oauth.authorize(
+      new OAuthServer.Request(req),
+      new OAuthServer.Response(res),
+    );
 
-const internal = {
-  resource: null
+    return res.json(authorizationCode);
+  } catch (err) {
+    res
+      .status(err.status || 500)
+      .json({ error: err.name, message: err.message });
+  }
+});
+
+app.post('/token', async (req, res) => {
+  try {
+    const token = await oauth.token(
+      new OAuthServer.Request(req),
+      new OAuthServer.Response(res),
+    );
+    res.json({
+      access_token: token.accessToken,
+      token_type: 'Bearer',
+      expires_at: token.accessTokenExpiresAt,
+      refresh_token: token.refreshToken,
+    });
+  } catch (err) {
+    res
+      .status(err.status || 500)
+      .json({ error: err.name, message: err.message });
+  }
+});
+
+const authenticate = async (req, res, next) => {
+  try {
+    const rawToken = req.headers.authorization.replace('Bearer ', '');
+    jwt.verify(rawToken, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+
+    const data = jwt.decode(rawToken, process.env.JWT_SECRET);
+    req.user = { id: data.userId };
+    next();
+  } catch (err) {
+    res
+      .status(err.status || 500)
+      .json({ error: err.name, message: err.message });
+  }
 };
 
-app.get('/read-resource', oauth.authenticate(), function (req, res) {
+const internal = {
+  resource: null,
+};
+
+app.get('/read-resource', authenticate, function (req, res) {
   res.send({ resource: internal.resource });
 });
 
-app.post('/write-resource',  oauth.authenticate(), function (req, res) {
-  internal.resource = req.body.value;
+app.post('/write-resource', authenticate, function (req, res) {
+  internal.resource = {
+    value: req.body.value,
+    authorId: req.user.id,
+    createdAt: new Date(),
+  };
   res.send({ message: 'resource created' });
 });
 
